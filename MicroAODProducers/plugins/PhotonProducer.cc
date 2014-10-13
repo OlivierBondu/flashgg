@@ -1,6 +1,7 @@
 #include "FWCore/Framework/interface/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -14,7 +15,7 @@
 #include "flashgg/MicroAODAlgos/interface/PhotonIdUtils.h"
 #include "HiggsAnalysis/GBRLikelihoodEGTools/interface/EGEnergyCorrectorSemiParm.h"
 
-using namespace std;
+//using namespace std;
 using namespace edm;
 
 namespace flashgg {
@@ -23,6 +24,8 @@ namespace flashgg {
 
   public:
     PhotonProducer( const ParameterSet & );
+    PhotonProducer( const ParameterSet &, edm::ConsumesCollector && );
+    ~PhotonProducer();
   private:
     void produce( Event &, const EventSetup & ) override;
     
@@ -44,13 +47,15 @@ namespace flashgg {
 
   };
 
+  PhotonProducer::PhotonProducer(const ParameterSet & iConfig):
+    PhotonProducer(iConfig, consumesCollector()) {}
 
-  PhotonProducer::PhotonProducer(const ParameterSet & iConfig) :
-    photonToken_(consumes<View<pat::Photon> >(iConfig.getUntrackedParameter<InputTag> ("PhotonTag", InputTag("slimmedPhotons")))),
-    pfcandidateToken_(consumes<View<pat::PackedCandidate> >(iConfig.getUntrackedParameter<InputTag> ("PFCandidatesTag", InputTag("packedPFCandidates")))),
-    vertexToken_(consumes<View<reco::Vertex> >(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")))),
-    vertexCandidateMapToken_(consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag")))
+  PhotonProducer::PhotonProducer(const ParameterSet & iConfig, edm::ConsumesCollector && iCollector)
   {
+    photonToken_                = iCollector.consumes<View<pat::Photon> >(iConfig.getUntrackedParameter<InputTag> ("PhotonTag", InputTag("slimmedPhotons")));
+    pfcandidateToken_           = iCollector.consumes<View<pat::PackedCandidate> >(iConfig.getUntrackedParameter<InputTag> ("PFCandidatesTag", InputTag("packedPFCandidates")));
+    vertexToken_                = iCollector.consumes<View<reco::Vertex> >(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")));
+    vertexCandidateMapToken_    = iCollector.consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag"));
 
     ecalHitEBColl_ = iConfig.getParameter<edm::InputTag>("reducedBarrelRecHitCollection");
     ecalHitEEColl_ = iConfig.getParameter<edm::InputTag>("reducedEndcapRecHitCollection");
@@ -63,7 +68,10 @@ namespace flashgg {
 
     regressionWeightFile_ = iConfig.getParameter<edm::FileInPath>("regressionWeightFile");
 
-    produces<vector<flashgg::Photon> >();
+    produces<std::vector<flashgg::Photon> >();
+  }
+
+  PhotonProducer::~PhotonProducer() {
   }
 
   void PhotonProducer::produce( Event & evt, const EventSetup & iSetup) {
@@ -90,7 +98,7 @@ namespace flashgg {
     const flashgg::VertexCandidateMap vtxToCandMap = *(vertexCandidateMap.product());    
     const double rhoFixedGrd = *(rhoHandle.product());
 
-    auto_ptr<vector<flashgg::Photon> > photonColl(new vector<flashgg::Photon>);
+    std::auto_ptr<std::vector<flashgg::Photon> > photonColl(new std::vector<flashgg::Photon>);
 
     // this is hacky and dangerous
     const reco::VertexCollection* orig_collection = static_cast<const reco::VertexCollection*>(vertices->product());

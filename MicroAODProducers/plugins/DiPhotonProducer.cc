@@ -1,6 +1,7 @@
 #include "FWCore/Framework/interface/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -18,7 +19,7 @@
 
 
 using namespace edm;
-using namespace std;
+//using namespace std;
 
 namespace flashgg {
 
@@ -26,12 +27,14 @@ namespace flashgg {
     
   public:
     DiPhotonProducer( const ParameterSet & ); 
+    DiPhotonProducer( const ParameterSet &, edm::ConsumesCollector &&); 
+    ~DiPhotonProducer(); 
   private:
     void produce( Event &, const EventSetup & ) override;
     EDGetTokenT<View<reco::Vertex> > vertexToken_;
     EDGetTokenT<View<flashgg::Photon> > photonToken_;
     EDGetTokenT< VertexCandidateMap > vertexCandidateMapToken_;
-    unique_ptr<VertexSelectorBase> vertexSelector_;
+    std::unique_ptr<VertexSelectorBase> vertexSelector_;
     EDGetTokenT<View<reco::Conversion> > conversionToken_;
     EDGetTokenT<View<reco::BeamSpot> > beamSpotToken_;
 
@@ -39,17 +42,22 @@ namespace flashgg {
   };
 
   DiPhotonProducer::DiPhotonProducer(const ParameterSet & iConfig) :
-    vertexToken_(consumes<View<reco::Vertex> >(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")))),
-    photonToken_(consumes<View<flashgg::Photon> >(iConfig.getUntrackedParameter<InputTag> ("PhotonTag", InputTag("flashggPhotons")))),
-    vertexCandidateMapToken_(consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag"))),
-    conversionToken_(consumes<View<reco::Conversion> >(iConfig.getUntrackedParameter<InputTag>("ConversionTag",InputTag("reducedConversions")))),
-    beamSpotToken_(consumes<View<reco::BeamSpot> >(iConfig.getUntrackedParameter<InputTag>("BeamSpotTag",InputTag("offlineBeamSpot")))){
+    DiPhotonProducer(iConfig, consumesCollector()) {}
+
+  DiPhotonProducer::DiPhotonProducer(const ParameterSet & iConfig, edm::ConsumesCollector && iCollector)
+  {
+    vertexToken_                = iCollector.consumes<View<reco::Vertex> >(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")));
+    photonToken_                = iCollector.consumes<View<flashgg::Photon> >(iConfig.getUntrackedParameter<InputTag> ("PhotonTag", InputTag("flashggPhotons")));
+    vertexCandidateMapToken_    = iCollector.consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag"));
+    conversionToken_            = iCollector.consumes<View<reco::Conversion> >(iConfig.getUntrackedParameter<InputTag>("ConversionTag",InputTag("reducedConversions")));
+    beamSpotToken_              = iCollector.consumes<View<reco::BeamSpot> >(iConfig.getUntrackedParameter<InputTag>("BeamSpotTag",InputTag("offlineBeamSpot")));
 
     const std::string& VertexSelectorName = iConfig.getParameter<std::string>("VertexSelectorName");
     vertexSelector_.reset(FlashggVertexSelectorFactory::get()->create(VertexSelectorName,iConfig));
-    produces<vector<flashgg::DiPhotonCandidate> >();
+    produces<std::vector<flashgg::DiPhotonCandidate> >();
+  }
 
-
+  DiPhotonProducer::~DiPhotonProducer() {
   }
 
   void DiPhotonProducer::produce( Event & evt, const EventSetup & ) {
@@ -79,7 +87,7 @@ namespace flashgg {
     }
 
     
-    auto_ptr<vector<DiPhotonCandidate> > diPhotonColl(new vector<DiPhotonCandidate>);
+    std::auto_ptr<std::vector<DiPhotonCandidate> > diPhotonColl(new std::vector<DiPhotonCandidate>);
 //    cout << "evt.id().event()= " << evt.id().event() << "\tevt.isRealData()= " << evt.isRealData() << "\tphotonPointers.size()= " << photonPointers.size() << "\tpvPointers.size()= " << pvPointers.size() << endl;
 
     for (unsigned int i = 0 ; i < photonPointers.size() ; i++) {

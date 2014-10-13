@@ -1,6 +1,7 @@
 #include "FWCore/Framework/interface/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -14,7 +15,7 @@
 #include "flashgg/MicroAODFormats/interface/VertexCandidateMap.h"
 
 
-using namespace std;
+//using namespace std;
 using namespace edm;
 
 namespace flashgg {
@@ -23,6 +24,8 @@ namespace flashgg {
 
   public:
     JetProducer( const ParameterSet & );
+    JetProducer( const ParameterSet &, edm::ConsumesCollector &&);
+    ~JetProducer();
   private:
     void produce( Event &, const EventSetup & ) override;
     EDGetTokenT<View<pat::Jet> > jetToken_;
@@ -30,25 +33,31 @@ namespace flashgg {
     //    EDGetTokenT<View<reco::Vertex> >  vertexToken_;
     //    EDGetTokenT<reco::VertexCollection> vertexToken_;
     EDGetTokenT< VertexCandidateMap > vertexCandidateMapToken_;
-    unique_ptr<PileupJetIdAlgo>  pileupJetIdAlgo_;
+    std::unique_ptr<PileupJetIdAlgo>  pileupJetIdAlgo_;
     ParameterSet pileupJetIdParameters_;
     //    bool useAODOnlyPileupJetIdMethod_;
   };
 
 
   JetProducer::JetProducer(const ParameterSet & iConfig) :
-    jetToken_(consumes<View<pat::Jet> >(iConfig.getUntrackedParameter<InputTag> ("JetTag", InputTag("slimmedJets")))),
-    diPhotonToken_(consumes<View<DiPhotonCandidate> >(iConfig.getUntrackedParameter<InputTag>("DiPhotonTag",InputTag("flashggDiPhotons")))),
+    JetProducer(iConfig, consumesCollector()) {}
+
+  JetProducer::JetProducer(const ParameterSet & iConfig, edm::ConsumesCollector && iCollector)
+  {
+    jetToken_                   = iCollector.consumes<View<pat::Jet> >(iConfig.getUntrackedParameter<InputTag> ("JetTag", InputTag("slimmedJets")));
+    diPhotonToken_              = iCollector.consumes<View<DiPhotonCandidate> >(iConfig.getUntrackedParameter<InputTag>("DiPhotonTag",InputTag("flashggDiPhotons")));
     //    vertexToken_(consumes<View<reco::Vertex> >(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")))),
     //    vertexToken_(consumes<reco::VertexCollection>(iConfig.getUntrackedParameter<InputTag> ("VertexTag", InputTag("offlineSlimmedPrimaryVertices")))),
-    vertexCandidateMapToken_(consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag"))),
-    pileupJetIdParameters_(iConfig.getParameter<ParameterSet>("PileupJetIdParameters"))
+    vertexCandidateMapToken_    = iCollector.consumes<VertexCandidateMap>(iConfig.getParameter<InputTag>("VertexCandidateMapTag"));
+    pileupJetIdParameters_      = iConfig.getParameter<ParameterSet>("PileupJetIdParameters");
     //    useAODOnlyPileupJetIdMethod_(iConfig.getUntrackedParameter<bool>("UseAODOnlyPileupJetIdMethod",false))
     
-  {
     pileupJetIdAlgo_.reset(new PileupJetIdAlgo(pileupJetIdParameters_));
 
-    produces<vector<flashgg::Jet> >();
+    produces<std::vector<flashgg::Jet> >();
+  }
+
+  JetProducer::~JetProducer(){
   }
 
   void JetProducer::produce( Event & evt, const EventSetup & ) {
@@ -69,7 +78,7 @@ namespace flashgg {
     evt.getByToken(vertexCandidateMapToken_,vertexCandidateMap);
 
     // output jets
-    auto_ptr<vector<flashgg::Jet> > jetColl(new vector<flashgg::Jet>);
+    std::auto_ptr<std::vector<flashgg::Jet> > jetColl(new std::vector<flashgg::Jet>);
 
     for (unsigned int i = 0 ; i < jetPointers.size() ; i++) {
       Ptr<pat::Jet> pjet = jetPointers[i];
